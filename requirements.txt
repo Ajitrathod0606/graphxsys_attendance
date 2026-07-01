@@ -1,0 +1,7 @@
+pyodbc>=4.0
+polars>=0.20
+pandas>=2.0
+prophet>=1.1
+openai>=1.0
+pydantic-ai>=0.0.14
+python-dotenv>=1.0
