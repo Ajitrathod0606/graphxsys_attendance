@@ -53,6 +53,9 @@ class DataLoader:
                 @EMPLOYEE = ?
         """
         with self.get_connection() as conn:
+            # Safety net: fail with an error after 3 minutes instead of hanging
+            # forever if the proc is given a pathological date range.
+            conn.timeout = 180
             cursor = conn.cursor()
             cursor.execute(sql, (
                 type_val, user_id, clid, fdate, tdate,
