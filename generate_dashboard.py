@@ -798,8 +798,13 @@ window.addEventListener('DOMContentLoaded', function () {
     populateSelect('fLocation', [...new Set(RAW.map(r => r.Location))], 'All locations');
     populateSelect('fEmployee', [...new Set(RAW.map(r => r.Employee))], 'All employees');
 
+    // Only allow days that actually exist in the data; everything outside the
+    // data's date range is greyed out / not selectable in the calendar.
+    const _range = dataDateRange();
     picker = flatpickr('#dateRange', {
         mode: 'range', dateFormat: 'd/m/y', allowInput: false,
+        minDate: _range.min || undefined,
+        maxDate: _range.max || undefined,
         onChange: function (sel) { if (sel.length === 2) markPreset(''); refresh(); }
     });
 
@@ -844,13 +849,18 @@ def main():
     parser.add_argument('--clid', type=int, default=9, help='Client ID')
     parser.add_argument('--user-id', type=int, default=16199, help='User ID')
     parser.add_argument('--type', type=int, default=1, choices=[1, 2], help='Report type')
-    parser.add_argument('--output', default='attendance_dashboard.html', help='Output HTML file')
+    parser.add_argument('--output', default='Timesheet.html', help='Output HTML file (today\'s date is appended automatically)')
     parser.add_argument('--no-ai', action='store_true', help='Skip AI insight generation (fastest)')
     parser.add_argument('--ai-timeout', type=int, default=90, help='Max seconds to wait for AI insights before skipping')
     parser.add_argument('--no-open', action='store_true', help='Do not open the dashboard in a browser afterwards')
     args = parser.parse_args()
 
     params = {'clid': args.clid, 'user_id': args.user_id, 'type_val': args.type}
+
+    # Name the report with today's date: e.g. Timesheet-2026-07-09.html
+    # ('/' can't be used in a filename, so the date uses '-' separators.)
+    base, ext = os.path.splitext(args.output)
+    args.output = f"{base}-{datetime.date.today().strftime('%Y-%m-%d')}{ext}"
 
     print(f"Fetching ALL data for CLID={args.clid}, Type={args.type} (no date filter)...")
     t0 = time.time()
@@ -881,6 +891,7 @@ def main():
 
     if not args.no_open:
         try:
+            
             webbrowser.open('file:///' + out_path.replace('\\', '/'))
             print("[OK] Opening dashboard in your default browser...")
         except Exception as e:  # noqa: BLE001
