@@ -38,10 +38,10 @@ class DataLoader:
         employee=''
     ):
         """
-        Execute MM_TS_TimeAttendance_AI_TEST and return the raw JSON string.
+        Execute MM_TS_TimeAttendance_AI_TEST_v1 and return the raw JSON string.
         """
         sql = """
-            EXEC [dbo].[MM_TS_TimeAttendance_AI_TEST]
+            EXEC [dbo].[MM_TS_TimeAttendance_AI_TEST_v1]
                 @Type = ?,
                 @User_Id = ?,
                 @CLID = ?,
@@ -61,7 +61,16 @@ class DataLoader:
                 type_val, user_id, clid, fdate, tdate,
                 region, district, location, employee
             ))
-            row = cursor.fetchone()
+            # The proc emits non-query result sets (row counts from the
+            # CREATE TABLE / INSERT loop) before the final SELECT. Skip forward
+            # until we reach a result set that actually has columns, then read it.
+            row = None
+            while True:
+                if cursor.description is not None:   # a real query result
+                    row = cursor.fetchone()
+                    break
+                if not cursor.nextset():
+                    break
             if row and row[0]:
                 return row[0]   # the JSON string
             return '[]'

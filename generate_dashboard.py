@@ -443,7 +443,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
                             <th style="cursor:default">#</th>
                             <th data-key="Date">Date <i class="fas fa-sort"></i></th>
                             <th data-key="Employee">Employee <i class="fas fa-sort"></i></th>
-                            <th data-key="Location">Location <i class="fas fa-sort"></i></th>
+                            <th data-key="Address">Location <i class="fas fa-sort"></i></th>
                             <th data-key="Scheduled Time In">Sched In</th>
                             <th data-key="Time In">Time In</th>
                             <th data-key="Time In Variance">In <i class="fas fa-sort"></i></th>
@@ -507,6 +507,10 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 <script>
 "use strict";
 const RAW = __DATA_JSON__;
+
+// The proc may emit the location key as `Location` or `location` depending on
+// how the column was cased in the SELECT. Normalise so `r.Location` always works.
+RAW.forEach(r => { if (r.Location === undefined && r.location !== undefined) r.Location = r.location; });
 
 const C = { ontime:'#0ca30c', late:'#d03b3b', early:'#2a78d6', auto:'#fab219', brand:'#2a78d6', aqua:'#1baf7a', ink:'#52596b', grid:'#eef0f5', muted:'#8b91a1' };
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -727,7 +731,7 @@ function renderTable() {
             '<td class="num">' + (i + 1) + '</td>' +
             '<td class="num">' + esc(r.Date) + '</td>' +
             '<td>' + esc(r.Employee) + '</td>' +
-            '<td>' + esc(r.Location) + '</td>' +
+            '<td>' + esc(r.Address) + '</td>' +
             '<td class="num">' + esc(r['Scheduled Time In']) + '</td>' +
             '<td class="num">' + esc(r['Time In']) + '</td>' +
             '<td>' + badge(r['Time In Variance']) + '</td>' +
@@ -744,8 +748,35 @@ function renderTable() {
     });
 }
 
+// ---------- dependent filter options ----------
+// Rebuild the Location/Employee dropdowns so they only list values present in
+// the rows within the currently selected date range. The current selection is
+// preserved if it still exists in the new range, otherwise it falls back to 'all'.
+function refreshFilterOptions() {
+    let start = null, end = null;
+    if (picker && picker.selectedDates.length === 2) {
+        start = picker.selectedDates[0];
+        const e = picker.selectedDates[1];
+        end = new Date(e.getFullYear(), e.getMonth(), e.getDate(), 23, 59, 59);
+    }
+    const rows = RAW.filter(r => {
+        const d = parseDate(r.Date);
+        if (start && (!d || d < start)) return false;
+        if (end && (!d || d > end)) return false;
+        return true;
+    });
+    const locSel = document.getElementById('fLocation');
+    const empSel = document.getElementById('fEmployee');
+    const prevLoc = locSel.value, prevEmp = empSel.value;
+    populateSelect('fLocation', [...new Set(rows.map(r => r.Location))], 'All locations');
+    populateSelect('fEmployee', [...new Set(rows.map(r => r.Employee))], 'All employees');
+    locSel.value = [...locSel.options].some(o => o.value === prevLoc) ? prevLoc : 'all';
+    empSel.value = [...empSel.options].some(o => o.value === prevEmp) ? prevEmp : 'all';
+}
+
 // ---------- master refresh ----------
 function refresh() {
+    refreshFilterOptions();
     computeFiltered();
     updateKpis();
     renderTrend();
@@ -758,7 +789,7 @@ function refresh() {
 // ---------- export ----------
 function exportRows() {
     return sortedRows().map(r => ({
-        Date: r.Date || '', Employee: r.Employee || '', Location: r.Location || '',
+        Date: r.Date || '', Employee: r.Employee || '', Location: r.Address || '',
         'Scheduled Time In': r['Scheduled Time In'] || '', 'Time In': r['Time In'] || '', 'Time In Variance': r['Time In Variance'] || '',
         'Scheduled Time Out': r['Scheduled Time Out'] || '', 'Time Out': r['Time Out'] || '', 'Time Out Variance': r['Time Out Variance'] || '',
         'Total Hours': r['Total Hrs'] || ''

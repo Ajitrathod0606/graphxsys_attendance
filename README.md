@@ -13,7 +13,7 @@ any browser — no server required.
 Timesheet-9/
 ├── generate_dashboard.py     # ★ Main entry point — builds the HTML dashboard
 ├── main.py                   # CLI helper — prints a data preview + insights to the console
-├── attendance_dashboard.html # Generated output (created/overwritten on each run)
+├── Timesheet-YYYY-MM-DD.html # Generated output (dated with the run date, e.g. Timesheet-2026-07-21.html)
 ├── requirements.txt          # Python dependencies
 ├── .env                      # Secrets: DB connection + Azure OpenAI keys (do NOT share)
 ├── .gitignore
@@ -38,17 +38,18 @@ Timesheet-9/
  DataLoader           AIInsights                 (in generate_dashboard.py)
         │                 │                           │
         ▼                 ▼                           ▼
- SQL Server SP      Azure OpenAI            attendance_dashboard.html
+ SQL Server SP      Azure OpenAI            Timesheet-YYYY-MM-DD.html
  (all records       (insights for the       (data + insights injected,
   up to today)       latest month only)       opens in the browser)
 ```
 
 1. **Fetch** — `DataLoader.fetch_attendance_json()` executes the stored procedure
-   `MM_TS_TimeAttendance_AI_TEST` and returns the result as JSON.
+   `MM_TS_TimeAttendance_AI_TEST_v1` and returns the result as JSON.
 2. **Analyse** — the latest month of data is passed to `AIInsights`, which asks
    Azure OpenAI for a management briefing (five fixed sections).
 3. **Render** — the full dataset and the insights are injected into `HTML_TEMPLATE`
-   and written to `attendance_dashboard.html`, which then opens automatically.
+   and written to a dated file `Timesheet-YYYY-MM-DD.html`, which then opens
+   automatically.
 
 The dashboard is **fully client-side**: all filtering, charting, sorting and
 Excel/CSV export happen in the browser against data embedded in the file.
@@ -100,7 +101,8 @@ AZURE_OPENAI_KEY=your-api-key
 python generate_dashboard.py
 ```
 This fetches all data up to today, generates AI insights for the latest month,
-writes `attendance_dashboard.html`, and opens it in your default browser.
+writes a dated file `Timesheet-YYYY-MM-DD.html` (the run date is appended
+automatically), and opens it in your default browser.
 
 ### Command-line options
 | Flag | Default | Description |
@@ -108,7 +110,7 @@ writes `attendance_dashboard.html`, and opens it in your default browser.
 | `--clid` | `9` | Client ID |
 | `--user-id` | `16199` | User ID |
 | `--type` | `1` | Report type (`1` or `2`) |
-| `--output` | `attendance_dashboard.html` | Output HTML file path |
+| `--output` | `Timesheet.html` | Output HTML base name; the run date is appended → `Timesheet-YYYY-MM-DD.html` |
 | `--no-ai` | off | Skip AI insight generation (fastest run) |
 | `--ai-timeout` | `90` | Max seconds to wait for AI before skipping |
 | `--no-open` | off | Do not auto-open the browser afterwards |
@@ -117,7 +119,7 @@ Examples:
 ```bash
 python generate_dashboard.py --no-ai                 # fastest, data only
 python generate_dashboard.py --clid 9 --type 2       # different report type
-python generate_dashboard.py --output report.html    # custom filename
+python generate_dashboard.py --output Report.html    # custom base -> Report-YYYY-MM-DD.html
 ```
 
 ### Console preview (optional)
@@ -133,6 +135,12 @@ Prints a table preview and AI insights to the terminal (no HTML output).
 **Filters** (apply across every tab): **Date range**, **Location**, **Employee**.
 Quick presets: *Latest day* (default), This month, Last month, Last 30 / 7 days,
 All time. The active range is shown as a chip next to the title.
+
+- The date picker is bounded to the **actual data range** — days with no data
+  (including any date after the latest record) are greyed out and can't be picked.
+- The **Location** and **Employee** dropdowns are **date-aware**: they list only
+  the values present within the currently selected date range. Changing the date
+  refreshes the options; a selection that's no longer in range falls back to "All".
 
 **Tabs:**
 - **Overview** — KPI tiles (records, employees, locations, on-time %, late %,
@@ -154,7 +162,8 @@ Each record returned by the stored procedure has these fields:
 | Field | Example | Notes |
 |-------|---------|-------|
 | `Date` | `01/07/26` | `dd/mm/yy` |
-| `Location` | `70 Westchester Square` | |
+| `Location` | `70 Westchester Square` | Store/location name — drives the filter dropdown, KPI count, and charts |
+| `Address` | `1110 Pennsylvania Ave` | Street address — shown in the Attendance Log table |
 | `Employee` | `Tayyab Tahir` | |
 | `Scheduled Time In` | `10 AM EST` | |
 | `Time In` | `10:45AM` | |
@@ -179,7 +188,8 @@ Each record returned by the stored procedure has these fields:
 ---
 
 ## Notes
-- `attendance_dashboard.html` is a **generated artifact**. It's overwritten on
-  every run; treat the `.py` files as the source of truth.
+- The generated `Timesheet-YYYY-MM-DD.html` is a **generated artifact**. A new
+  file is produced per run date (re-running on the same day overwrites it); treat
+  the `.py` files as the source of truth.
 - The dashboard loads Bootstrap, Flatpickr, Chart.js and SheetJS from CDNs, so an
   internet connection is needed to view it with full styling and charts.
